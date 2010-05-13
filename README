@@ -1,5 +1,5 @@
 NAME
-    "Linux::SocketFilter" - interface to Linux's socket packet filtering
+    `Linux::SocketFilter' - interface to Linux's socket packet filtering
 
 DESCRIPTION
     This module contains the constants and structure definitions to use
@@ -18,6 +18,8 @@ CONSTANTS
      BPF_JA BPF_JEQ BPF_JGT BPF_JGE BPF_JSET
      BPF_K BPF_X BPF_A BPF_TAX BPF_TXA
 
+    This entire set of constants is also exported under the tag name `:bpf'.
+
   Linux BPF Extension Packet Addresses
      SKF_AD_OFF SKF_AD_PROTOCOL SKF_AD_PKTTYPE SKF_AD_IFINDEX
      SKF_NET_OFF SKF_LL_OFF
@@ -31,7 +33,7 @@ SOCKET FUNCTIONS
   attach_filter( $sock, $filter )
     Attaches the given filter program to the given socket. The program
     should be a string formed by concatenating multiple calls to
-    "pack_sock_filter()" to build the filter program.
+    `pack_sock_filter()' to build the filter program.
 
   detach_filter( $sock )
     Detaches the current filter from the socket, returning it to accepting

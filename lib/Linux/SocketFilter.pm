@@ -10,7 +10,7 @@ use warnings;
 
 use Carp;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Exporter 'import';
 
@@ -22,6 +22,10 @@ use constant SIZEOF_SOCK_FILTER => length pack_sock_filter( 0, 0, 0, 0 );
 push our @EXPORT_OK, qw(
    attach_filter
    detach_filter
+);
+
+our %EXPORT_TAGS = (
+   bpf => [ do { no strict 'refs'; grep m/^BPF_/, keys %{__PACKAGE__."::"} } ]
 );
 
 =head1 NAME
@@ -48,6 +52,8 @@ The following constants are exported:
  BPF_ADD BPF_SUB BPF_MUL BPF_DIV BPF_OR BPF_AND BPF_LSH BPF_RSH BPF_NEG
  BPF_JA BPF_JEQ BPF_JGT BPF_JGE BPF_JSET
  BPF_K BPF_X BPF_A BPF_TAX BPF_TXA
+
+This entire set of constants is also exported under the tag name C<:bpf>.
 
 =head2 Linux BPF Extension Packet Addresses
 
@@ -103,7 +109,9 @@ sub detach_filter
 {
    my ( $sock ) = @_;
 
-   $sock->setsockopt( SOL_SOCKET, SO_DETACH_FILTER, undef );
+   # We don't care about an option value, but kernel requires optlen to be at
+   # least sizeof(int).
+   $sock->setsockopt( SOL_SOCKET, SO_DETACH_FILTER, pack( "I", 0 ) );
 }
 
 # Keep perl happy; keep Britain tidy

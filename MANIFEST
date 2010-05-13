@@ -1,5 +1,6 @@
 Build.PL
 lib/Linux/SocketFilter.pm
+lib/Linux/SocketFilter/Assembler.pm
 lib/Linux/SocketFilter_const.pm.PL
 LICENSE
 Makefile.PL
@@ -7,4 +8,8 @@ MANIFEST			This list of files
 META.yml
 README
 t/00use.t
+t/01constants.t
+t/02filter.t
+t/03attach.t
+t/10assembler.t
 t/99pod.t

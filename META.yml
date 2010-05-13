@@ -12,7 +12,7 @@ configure_requires:
   ExtUtils::CChecker: 0.02
   Module::Build: 0
   Module::Build::Compat: 0
-generated_by: 'Module::Build version 0.3603'
+generated_by: 'Module::Build version 0.3607'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -21,7 +21,10 @@ name: Linux-SocketFilter
 provides:
   Linux::SocketFilter:
     file: lib/Linux/SocketFilter.pm
-    version: 0.01
+    version: 0.02
+  Linux::SocketFilter::Assembler:
+    file: lib/Linux/SocketFilter/Assembler.pm
+    version: 0.02
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02
