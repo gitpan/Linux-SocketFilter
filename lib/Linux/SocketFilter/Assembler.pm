@@ -8,7 +8,7 @@ package Linux::SocketFilter::Assembler;
 use strict;
 use warnings;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Linux::SocketFilter qw( :bpf pack_sock_filter SKF_NET_OFF );
 
@@ -69,7 +69,7 @@ sub assemble
       next if m/^;/; # skip comments
 
       my ( $op, $args ) = split ' ', $_, 2;
-      my @args = split m/,\s*/, $args;
+      my @args = defined $args ? split m/,\s*/, $args : ();
 
       $self->can( "assemble_$op" ) or
          die "Can't compile $_ - unrecognised op '$op'\n";
@@ -132,8 +132,10 @@ Load the C<A> register with a literal value
 Load the C<A> register with the value from the given scratchpad cell
 
  LD X
+ TXA
 
-Load the C<A> register with the value from the C<X> register.
+Load the C<A> register with the value from the C<X> register. (These two
+instructions are synonymous)
 
 =cut
 
@@ -166,12 +168,14 @@ sub assemble_LD
       pack_sock_filter( $code|BPF_MEM, 0, 0, _parse_literal($1) );
    }
    elsif( $src eq "X" ) {
-      pack_sock_filter( BPF_MISC|BPF_TAX, 0, 0, 0 );
+      pack_sock_filter( BPF_MISC|BPF_TXA, 0, 0, 0 );
    }
    else {
       die "Unrecognised instruction LD $src\n";
    }
 }
+
+sub assemble_TXA { pack_sock_filter( BPF_MISC|BPF_TXA, 0, 0, 0 ) }
 
 =pod
 
@@ -184,8 +188,10 @@ Load the C<X> register with a literal value
 Load the C<X> register with the value from the given scratchpad cell
 
  LDX A
+ TAX
 
-Load the C<X> register with the value from the C<A> register
+Load the C<X> register with the value from the C<A> register. (These two
+instructions are synonymous)
 
 =cut
 
@@ -202,10 +208,36 @@ sub assemble_LDX
       pack_sock_filter( $code|BPF_MEM, 0, 0, _parse_literal($1) );
    }
    elsif( $src eq "A" ) {
-      pack_sock_filter( BPF_MISC|BPF_TXA, 0, 0, 0 );
+      pack_sock_filter( BPF_MISC|BPF_TAX, 0, 0, 0 );
    }
    else {
       die "Unrecognised instruction LDX $src\n";
+   }
+}
+
+sub assemble_TAX { pack_sock_filter( BPF_MISC|BPF_TAX, 0, 0, 0 ) }
+
+=pod
+
+ LDMSHX BYTE[lit]
+
+Load the C<X> register with a value obtained from a byte in the packet masked
+and shifted (hence the name). The byte at the literal address is masked by
+C<0x0f> to obtain the lower 4 bits, then shifted 2 bits upwards. This
+special-purpose instruction loads the C<X> register with the size, in bytes,
+of an IPv4 header beginning at the given literal address.
+
+=cut
+
+sub assemble_LDMSHX
+{
+   my ( undef, $src ) = @_;
+
+   if( $src =~ m/^BYTE\[($match_literal)\]$/ ) {
+      pack_sock_filter( BPF_LDX|BPF_MSH|BPF_B, 0, 0, _parse_literal($1) );
+   }
+   else {
+      die "Unrecognised instruction LDMSHX $src\n";
    }
 }
 

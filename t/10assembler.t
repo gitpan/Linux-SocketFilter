@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 20;
+use Test::More tests => 24;
 
 use Linux::SocketFilter::Assembler qw( assemble );
 use Linux::SocketFilter qw( :bpf unpack_sock_filter SKF_NET_OFF );
@@ -42,6 +42,12 @@ is_instr "LD WORD[NET+X+3]", BPF_LD|BPF_IND|BPF_W, 0, 0, u32 SKF_NET_OFF+3;
 is_instr "JA 1",          BPF_JMP|BPF_JA,        0, 0, 1;
 is_instr "JGT 100, 2, 3", BPF_JMP|BPF_JGT|BPF_K, 2, 3, 100;
 is_instr "JGT X, 4, 5",   BPF_JMP|BPF_JGT|BPF_X, 4, 5, 0;
+
+# Both forms of reg->reg
+is_instr "TAX",   BPF_MISC|BPF_TAX, 0, 0, 0;
+is_instr "LDX A", BPF_MISC|BPF_TAX, 0, 0, 0;
+is_instr "TXA",   BPF_MISC|BPF_TXA, 0, 0, 0;
+is_instr "LD X",  BPF_MISC|BPF_TXA, 0, 0, 0;
 
 sub is_instrs
 {

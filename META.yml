@@ -21,10 +21,10 @@ name: Linux-SocketFilter
 provides:
   Linux::SocketFilter:
     file: lib/Linux/SocketFilter.pm
-    version: 0.02
+    version: 0.03
   Linux::SocketFilter::Assembler:
     file: lib/Linux/SocketFilter/Assembler.pm
-    version: 0.02
+    version: 0.03
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.02
+version: 0.03
