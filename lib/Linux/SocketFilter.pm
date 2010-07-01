@@ -10,7 +10,7 @@ use warnings;
 
 use Carp;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 use Exporter 'import';
 
@@ -25,17 +25,39 @@ push our @EXPORT_OK, qw(
 );
 
 our %EXPORT_TAGS = (
-   bpf => [ do { no strict 'refs'; grep m/^BPF_/, keys %{__PACKAGE__."::"} } ]
+   bpf => [ do { no strict 'refs'; grep m/^BPF_/, keys %{__PACKAGE__."::"} } ],
+   skf => [ do { no strict 'refs'; grep m/^SKF_/, keys %{__PACKAGE__."::"} } ],
 );
 
 =head1 NAME
 
 C<Linux::SocketFilter> - interface to Linux's socket packet filtering
 
+=head1 SYNOPSIS
+
+ use Linux::SocketFilter qw( :bpf pack_sock_filter );
+ use IO::Socket::Packet;
+ use Socket qw( SOCK_DGRAM );
+
+ my $sock = IO::Socket::Packet->new(
+    IfIndex => 0,
+    Type    => SOCK_DGRAM,
+ ) or die "Cannot socket - $!";
+
+ $sock->attach_filter(
+    pack_sock_filter( BPF_RET|BPF_IMM, 0, 0, 20 )
+ );
+
+ while( my $addr = $sock->recv( my $buffer, 20 ) ) {
+    printf "Packet: %v02x\n", $buffer;
+ }
+
 =head1 DESCRIPTION
 
 This module contains the constants and structure definitions to use Linux's
 socket packet filtering mechanism.
+
+=cut
 
 =head1 CONSTANTS
 
@@ -60,6 +82,8 @@ This entire set of constants is also exported under the tag name C<:bpf>.
  SKF_AD_OFF SKF_AD_PROTOCOL SKF_AD_PKTTYPE SKF_AD_IFINDEX
  SKF_NET_OFF SKF_LL_OFF
 
+This entire set of constants is also exported under the tag name C<:skf>.
+
 =head1 STRUCTURE FUNCTIONS
 
 =head2 $buffer = pack_sock_filter( $code, $jt, $jf, $k )
@@ -72,13 +96,18 @@ Pack or unpack a single BPF instruction.
 
 =head1 SOCKET FUNCTIONS
 
+The following exported functions are also provided as methods on the
+C<IO::Socket> class.
+
 =cut
 
 =head2 attach_filter( $sock, $filter )
 
+=head2 $sock->attach_filter( $filter )
+
 Attaches the given filter program to the given socket. The program should be a
 string formed by concatenating multiple calls to C<pack_sock_filter()> to
-build the filter program.
+build the filter program, or by using L<Linux::SocketFilter::Assembler>.
 
 =cut
 
@@ -98,7 +127,11 @@ sub attach_filter
    $sock->setsockopt( SOL_SOCKET, SO_ATTACH_FILTER, $struct_sock_fprog );
 }
 
+*IO::Socket::attach_filter = \&attach_filter;
+
 =head2 detach_filter( $sock )
+
+=head2 $sock->detach_filter()
 
 Detaches the current filter from the socket, returning it to accepting all
 packets.
@@ -113,6 +146,8 @@ sub detach_filter
    # least sizeof(int).
    $sock->setsockopt( SOL_SOCKET, SO_DETACH_FILTER, pack( "I", 0 ) );
 }
+
+*IO::Socket::detach_filter = \&detach_filter;
 
 # Keep perl happy; keep Britain tidy
 1;

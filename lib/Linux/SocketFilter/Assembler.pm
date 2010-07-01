@@ -8,9 +8,9 @@ package Linux::SocketFilter::Assembler;
 use strict;
 use warnings;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
-use Linux::SocketFilter qw( :bpf pack_sock_filter SKF_NET_OFF );
+use Linux::SocketFilter qw( :bpf :skf pack_sock_filter );
 
 use Exporter 'import';
 our @EXPORT_OK = qw(
@@ -21,23 +21,76 @@ our @EXPORT_OK = qw(
 
 C<Linux::SocketFilter::Assembler> - assemble BPF programs from textual code
 
+=head1 SYNOPSIS
+
+ use Linux::SocketFilter;
+ use Linux::SocketFilter::Assembler qw( assemble );
+ use IO::Socket::Packet;
+ use Socket qw( SOCK_DGRAM );
+
+ my $sock = IO::Socket::Packet->new(
+    IfIndex => 0,
+    Type    => SOCK_DGRAM,
+ ) or die "Cannot socket - $!";
+
+ $sock->attach_filter( assemble( <<"EOF" ) );
+    LD AD[PROTOCOL]
+
+    JEQ 0x0800, 0, 1
+    RET 20
+
+    JEQ 0x86dd, 0, 1
+    RET 40
+
+    RET 0
+ EOF
+
+ while( my $addr = $sock->recv( my $buffer, 40 ) ) {
+    printf "Packet: %v02x\n", $buffer;
+ }
+
 =head1 DESCRIPTION
 
 Linux sockets allow a filter to be attached, which determines which packets
 will be allowed through, and which to block. They are most often used on
 C<PF_PACKET> sockets when used to capture network traffic, as a filter to
-determine the traffic of interest to the capturing application. The filter is
-a program run in a simple virtual machine, which can inspect bytes of the
-packet and certain other items of metadata, and returns the number of bytes
-to capture (or zero, to indicate this packet should be ignored).
+determine the traffic of interest to the capturing application. By running
+directly in the kernel, the filter can discard all, or most, of the traffic
+that is not interesting to the application, allowing higher performance due
+to reduced context switches between kernel and userland.
 
 This module allows filter programs to be written in textual code, and
 assembled into a binary filter, to attach to the socket using the
 C<SO_ATTACH_FILTER> socket option.
 
-While reading this documentation, the reader is assumed to have a basic
-knowledge of the C<PF_PACKET> socket family, the Berkeley Packet Filter, and
-its extensions in Linux.
+=cut
+
+=head1 FILTER MACHINE
+
+The virtual machine on which these programs run is a simple load/store
+register machine operating on 32-bit words. It has one general-purpose
+accumulator register (C<A>) and one special purpose index register (C<X>).
+It has a number of temporary storage locations, called scratchpads (C<M[]>).
+It is given read access to the contents of the packet to be filtered in 8-bit
+(C<BYTE[]>), 16-bit (C<HALF[]>) or 32-bit (C<WORD[]>) sized quantities. It
+also has an implicit program counter, though direct access to it is not
+provided.
+
+The filter program is run by the kernel on every packet captured by the socket
+to which it is attached. It can inspect data in the packet and certain other
+items of metadata concerning the packet, and decide if this packet should be
+accepted by the capture socket. It returns the number of bytes to capture if
+it should be captured, or zero to indicate this packet should be ignored. It
+starts on the first instruction, and proceeds forwards, unless the flow is
+modified by a jump instruction. The program terminates on a C<RET>
+instruction, which informs the kernel of the required fate of the packet. The
+last instruction in the filter must therefore be a C<RET> instruction; though
+others may appear at earlier points.
+
+In order to guarantee termination of the program in all circumstances, the
+virtual machine is not fully Turing-powerful. All jumps, conditional or
+unconditional, may only jump forwards in the program. It is not possible to
+construct a loop of instructions that executes repeatedly.
 
 =cut
 
@@ -82,9 +135,9 @@ sub assemble
 
 =head1 INSTRUCTION FORMAT
 
-Each instruction in the program is formed of an opcode followed by at least
-one operand. Where numeric literals are involved, they may be given in
-decimal, hexadecimal, or octal form. Literals will be notated as C<lit> in the
+Each instruction in the program is formed of an opcode followed by its
+operands. Where numeric literals are involved, they may be given in decimal,
+hexadecimal, or octal form. Literals will be notated as C<lit> in the
 following descriptions.
 
 =cut
@@ -108,7 +161,7 @@ sub _parse_literal
  LD HALF[addr]
  LD WORD[addr]
 
-Load the C<A> register from the 8, 16, or 32 bit quantity in the packet buffer
+Load the C<A> register from the 8, 16, or 32-bit quantity in the packet buffer
 at the address. The address may be given in the forms
 
  lit
@@ -137,7 +190,39 @@ Load the C<A> register with the value from the given scratchpad cell
 Load the C<A> register with the value from the C<X> register. (These two
 instructions are synonymous)
 
+ LD AD[name]
+
+Load the C<A> register with a value from the packet auxiliary data area. The
+following data points are available.
+
+=over 4
+
+=over 4
+
+=item PROTOCOL
+
+The ethertype protocol number of the packet
+
+=item PKTTYPE
+
+The type of the packet; see the C<PACKET_*> constants defined in
+L<Socket::Packet>.
+
+=item IFINDEX
+
+The index of the interface the packet was received on or transmitted from.
+
+=back
+
+=back
+
 =cut
+
+my %auxdata_offsets = (
+   PROTOCOL => SKF_AD_PROTOCOL,
+   PKTTYPE  => SKF_AD_PKTTYPE,
+   IFINDEX  => SKF_AD_IFINDEX,
+);
 
 sub assemble_LD
 {
@@ -169,6 +254,9 @@ sub assemble_LD
    }
    elsif( $src eq "X" ) {
       pack_sock_filter( BPF_MISC|BPF_TXA, 0, 0, 0 );
+   }
+   elsif( $src =~ m/^AD\[(.*)\]$/ and exists $auxdata_offsets{$1} ) {
+      pack_sock_filter( $code|BPF_W|BPF_ABS, 0, 0, SKF_AD_OFF + $auxdata_offsets{$1} );
    }
    else {
       die "Unrecognised instruction LD $src\n";

@@ -9,6 +9,7 @@ module "Linux::SocketFilter";
 
 use_export_ok;
 
+include "linux/types.h";
 include "linux/filter.h";
 include "sys/socket.h";
 

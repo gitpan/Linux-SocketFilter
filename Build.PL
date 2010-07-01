@@ -11,6 +11,7 @@ my $cc = ExtUtils::CChecker->new;
 $cc->assert_compile_run(
    diag => "no filter.h",
    source => <<'EOF' );
+#include <linux/types.h>
 #include <linux/filter.h>
 int cmd = BPF_LD;
 int main(int argc, char *argv[]) {
@@ -21,6 +22,7 @@ EOF
 $cc->assert_compile_run(
    diag => "version mismatch",
    source => <<'EOF' );
+#include <linux/types.h>
 #include <linux/filter.h>
 #include <stdio.h>
 int main(int argc, char *argv[]) {
